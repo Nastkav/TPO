@@ -1,0 +1,460 @@
+A Parallel Selection Sorting Algorithm on
+GPUs Using Binary Search
+Sweta Kumari and Dhirendra Pratap Singh
+Department of computer Science and Engineering
+Maulana Azad National Institute of Technology
+Bhopal, Madhya Pradesh
+SwetakumariII2@gmail.com
+dhirendra.dheeru@gmail.com
+Abstract - This paper describes a hybrid sorting which is
+the combination of radix sort and selection sort on
+graphic processing unit (GPU). The proposed algorithm
+is based on "Split and Concurrent Selection" (SCS)
+strategy. First, the data sequence is split in several
+pieces that are sorted in parallel using Radix sort. After
+that it applies parallel selection sort to obtain the final
+sorted sequence. Parallel selection sort finds the correct
+position of each elements of a data sequence and then
+copy the elements of a data sequence to corresponding
+position to obtain the final sorted data sequence. This
+paper analyses the computational complexity of
+proposed parallel sorting algorithm and compares it
+with other existing algorithms. It is implemented using
+CUDA 5.0 and results are evaluated on Tesla C2075
+GPU. Experimental results of proposed algorithm are
+compared with results of best sequential sorting
+algorithm and odd- even merge sort based parallel
+sorting algorithm. Proposed algorithm shows up to 50
+times speed up as compare to serial and two fold
+speedup as compare to parallel algorithm.
+Keywords-Selection sort, Radix sort, Binary search,
+GPUs
+I. INTRODUCTION
+Sorting the elements of a data sequence is one of
+the most widely studied algorithmic problems.
+Sorting means arranging the elements of data
+sequence systematically in groups or separate
+according to types. Sorting is a very common task
+used in many real time applications like real time
+graphics scenarios, sorting on graphs [1], database
+management systems [2], image processing and
+numerical simulation. Sorting is the fundamental
+operations to organize and filter the massive amount
+of data gathered. Designing the efficient sorting
+algorithms for a parallel architecture is always the
+need for performance boost up of these applications.
+This paper presents a new parallel sorting algorithm
+for GPU based machine because GPU gives dozens
+of processing cores in most inexpensive rate.
+There are number of parallel sorting algorithms
+are available for different machines:
+Parallel odd-even transposition is an extension of
+bubble sort, operates in two alternate phases. First is
+called even-phase where even processors exchange
+values with right neighbours and second is odd-phase
+where odd processors exchange values with right
+neighbours. Time complexity of Parallel odd-even
+transposition is (nip) log (nip) + 2n, where n is the
+number of elements and p is number of processors.
+Parallel merge sort [1] is based on divide and
+conquers strategy. It assigns work to processors
+organized as a tree. First subdivides it in two parts
+and give it to the particular processors. Again apply
+the same method to each part. After that start merging
+between two processors element in sorted order,
+again apply the same method until they get the sorted
+data sequence [2]. Time complexity of parallel merge
+sort is 0 (n) but it has unbalanced processor and load
+communication.
+Parallel sorting networks [3] is a way to achieve
+high performance in super computing system [4] like
+cray machines [5]. In 1968, Batcher proposed two
+comparison based sorting networks[6]: first is Oddeven merge sort and second is Bitonic sort [7]. Time
+complexity of Bitonic sort is 0 (Iog2
+n) with balanced
+processor and load communication [8]. Bitonic sort
+[9] is widely used in parallel machines because
+algorithm is simple and symmetry to generate highly
+efficient parallel sorter. After that Atjai et aI.,
+proposed another comparison based sorting with
+complexity O(nlogn) but it has large constant hidden
+in order notation. Leighton[IO] also proposed parallel
+sorting algorithm for an n-processor hypercube using
+random operation [11]. Comparison based parallel
+sorting algorithms with complexity 0 (nlogn) in real
+for a parallel network is not easy to achieve [12].
+Counting based parallel sorting algorithm [13] is an
+alternative approach for comparison based parallel
+sorting algorithms. It reduces the overall time
+complexity from 0 (nlogn) to 0 (n). When we used P
+number of processor then the runtime complexity
+reduce to 0 (nip). But it has a limitation; the input
+978-1-4799-6393-5/14/$31.00 ©2014 IEEE
+IEEE International Conference on Advances in Engineering & Technology Research (ICAETR - 2014),
+August 01-02, 2014, Dr. Virendra Swarup Group ofInstitutions, Unnao, India
+should be integers or values[14] that can be mapped
+to integers. Parallel radix sort [15] algorithm is the
+best example of counting based parallel sorting.
+Parallel radix sort is faster than parallel quick sort on
+the same platform.
+To further reduce the complexity of counting
+based parallel sorting algorithm on GPUs Sintorn and
+assarsson proposed a hybrid sorting algorithm. This
+algorithm is the combination of vectorized merge sort
+and bucket sort on GPU [16]. According to them this
+hybrid algorithm is twice faster than fastest GPU
+based Bitonic sort algorithm. A parallel sorting
+algorithm based on odd-even merge sort is known as
+"partition and concurrent merging" (PCM). This
+algorithm is based on divide and conquers strategy.
+First, data sequence is divided and sorted several
+pieces by using parallel quick sort. After that all
+pieces are merged by using odd-even merging
+procedure recursively to get the final sorted output. In
+each iteration of this recursive procedure we take pair
+of sequence pieces and sorted concurrently. The time
+complexity of PCM sorting algorithm is O(S/n
+10gS/n) + O(S), where S is the size of data sequence
+D and n is the number of processors.
+Other Sections are consists as follows. Section 2
+describes the programming model of CUDA. Section
+3 describes the description of proposed parallel
+sorting algorithm. Sections 4 analyse the
+computational complexity of parallel sorting
+algorithm on GPUs. Section 5 represents the
+experimental results of algorithm and compared it
+with other implementations. Section 6 fmally
+conclude the paper with discussion of the results and
+provides the direction for future work.
+II. CUDA PROGRAMMING MODEL
+OVERVIEW
+CUDA stands for "Compute Unified Device
+Architecture". It is introduced by NVIDIA [17] in
+2007. CUDA provides heterogeneous computing
+which is the combination of CPU and GPu. It is a
+parallel computing tool and subset of C with
+extensions. Serial part of the CUDA program is
+compiled by c compiler present in CPU and parallel
+part of is compiled by NVCC compiler. To
+understand that how a CUDA program executes in
+parallel we should know about GPU hardware
+architecture shown in Fig. 1 and CUDA programming
+model [18]. As shown in Fig. 1 a GPU is collection of
+one or mUltiple streaming multiprocessors and each
+multiprocessor can have multiple cores. GPU has
+multilevel memory architecture. Each core of
+multiprocessor has it private fast register memory and
+each multiprocessor has its own shared memory
+which is accessible by all cores of that
+multiprocessor. Device DRAM memory [19] is
+divided in four parts global, local, constant and
+texture memories. Out of these four memories local
+and global are read- write memories and constant and
+texture are read only memories.
+Set of instructions which need to be executed
+parallel are written in a function called kernel. A
+CUDA program can have multiple kernels but one
+kernel executes at a time. User defines the number of
+parallel instances or threads that will execute the
+kernel at the time of kernel calling [20]. CUDA
+logically arrange these threads in two different levels,
+first is blocks and second is grid. A block is a
+collection of threads, and a grid is a collection of
+blocks. It works on SIMT (Single Instruction
+Multiple Threads) [21] i.e. single instruction will be
+executed on multiple threads at a time.
+Fig. I. GPU architecture for CUDA
+III. PROPOSED ALGORITHM
+Our proposed parallel sorting algorithm on GPU
+is a hybrid algorithm, the combination of parallel
+radix sort and parallel selection sort [9]. First it split
+the data sequence into several pieces then apply radix
+sort [12] concurrently on all the pieces. After that it
+uses parallel selection sort to find the correct position
+of each element of a data sequence concurrently.
+Then copy the elements of a data sequence to
+corresponding position to obtain the final sorted data
+sequence.
+978-1-4799-6393-5/14/$31.00 ©2014 IEEE
+IEEE International Conference on Advances in Engineering & Technology Research (ICAETR - 2014),
+August 01-02, 2014, Dr. Virendra Swarup Group ofInstitutions, Unnao, India
+The complete parallel sorting algorithm is called
+"split and parallel selection" algorithm composed of
+the above two stages. In which our parallel radix sort
+is similar as existing parallel radix sorting algorithm.
+However its efficiency depends to a large extent on
+selection sort that finds the final position of elements
+in sorted data sequence.
+A. Split and Concurrent Selection
+Let us assume a shared memory multiprocessor
+with n processors, denoted by PI, P2........ Pn.
+Again, let us assume a data sequence D of size S
+which is initially unordered and one more data
+sequence d of size S which is initially empty.
+Proposed parallel sorting algorithm first split the data
+sequence D into subsequences of size Sin. Each
+subsequence is denoted by Dj and assigned to the
+processor P j where i is from 1 to n.
+After splitting the data sequence D of size S
+equally to n processors, each processor Pi gets Sin
+elements and sort its assigned subsequence Di of size
+Sin by using a fast sequential radix sort parallely[13]
+on each processor individually. An algorithm for
+proposed algorithm SCS is as follows:
+Algorithm 1: Split and Concurrent Selection
+Sorting ( data sequence D, size S, data sequence d)
+Create array d and X of size S, Pj shows the processor
+i, where i = 1 to n, and a variable FST and LA T show
+the first and last element of corresponding processor
+respectively
+Begin
+1) for all processors Pj do in parallel
+2) Radix sort (Dj)
+3) End
+4) for all processors Pj do in parallel
+5) for k=1 to Sin
+6) for 0 =1 to n
+7) if(Pj[k] < Po[FST] or Pj[k] > Po[LAT] ) then
+8) Break
+9) Else apply Binary Search to fmd the numbers of
+elements Mo are smaller than Pj[k] in po.
+10) End if
+II) Xj[k] = Xj[k] + Mo
+12) End for
+13) End for
+14) End for
+15) Copy the elements of data sequence D to the
+corresponding position in data sequence d.
+End
+After that it applies parallel selection sort to find out
+the position of elements of each subsequence Dj in
+data sequence d. It uses the binary search to get the
+correct position of elements. If the two or more
+elements have same value then FCFS (first come first
+serve) technique is used to position the elements.
+Then put the corresponding element of data sequence
+D into data sequence d in sorted order. Finally the
+sorted output is stored in data sequence d.
+B. Example
+Initially we have unsorted data sequence D with
+size 12 elements and we are using four processors so,
+each processor has 3 elements shown in Fig.2 (a). Let
+us consider the first processor P I has first three
+elements as {2,9,6} similarly processor P2 has next 3
+elements and so on. Apply sequential radix sort on
+each processor parallely and get the result as Fig.2 (b)
+so, we get {2,6,9} in processor PI after doing radix
+sort and so on for all processors.
+(a) {2,9,6} {8,7,5} {3,6, I} {9,5,0}
+PI P2 P3 P4
+(b)
+{2,6,9} {5,7,8} {1,3,6} {0,5,9}
+PI P2 P3 P4
+(c)
+{2,6,10} {4,8,9} { 1,3,7} {0,5,11
+PI P2 P3 P4
+(d) {0,1,2} {3,5,5} {6,6,7} {8,9,9}
+PI P2 P3 P4
+Fig. 2. Sorting 12 elements data sequence
+Then apply binary search algorithm on Fig.2 (b)
+data to get number of elements smaller than any
+elements shown in Fig.2 (c). Finally copy the data of
+D to array d in the position where number of elements
+smaller than any element plus one to get the sorted
+data sequence and we get sorted data sequence in
+array d.
+V .COMPUT A TIONAL COMPLEXITY
+A. Complexity Analysis DISCS Algorithm
+This section presents detail analysis of the
+computational complexity of proposed algorithm.
+This analysis is divvied in two parts: First, parallel
+978-1-4799-6393-5/14/$31.00 ©2014 IEEE
+IEEE International Conference on Advances in Engineering & Technology Research (ICAETR - 2014),
+August 01-02, 2014, Dr. Virendra Swarup Group ofInstitutions, Unnao, India
+radix sort phase complexity and second selection sort
+based on binary search.
+B. Parallel Radix Sort Phase Complexity
+Radix sort is one of the oldest and well- known
+sorting algorithms on sequential machines. It is the
+most efficient sorting algorithm for small element. It
+assumes that the elements are d digit numbers and
+sort one digit of element at a time, from least to most
+significant bit. In sequential radix sort, for a fixed
+element size d, the complexity of n records is 0 (n).
+In our proposed algorithm, radix sort is used in
+parallel to sort the each subsequence of size Sin, so
+that computational complexity of first phase is
+O(S/n).
+C. Selection Sort Based On Binary Search
+Complexity
+This phase is used to find out the sorted position
+of elements by using binary search algorithm [22].
+Binary search is the best searching algorithm for
+sorted elements [23]. The complexity of binary search
+for n record is 0 (1) in best case and 0 (Iogn) in
+worse case [24]. In the proposed algorithm binary
+search is used to find out the sorted position of an
+element in subsequence of size Sin and find the
+position in all S subsequence. So, the computational
+complexity of second phase is 0 (n*logS/n).
+D. SCS Complexity
+According to the analysis in above subsections,
+the computational complexity of SCS parallel sorting
+algorithm is 0 (Sin) + 0 (nlogS/n).
+VI. IMPLEMENA nON AND
+EXPERIMENT AL EV ALUA nON
+To implement this algorithm in CUDA we made
+two kernels First kernel is used to divide the data
+sequence into subsequences and sort the each
+subsequence Di through corresponding thread Ti by
+using sequential radix sort. Second kernel uses the
+results of first kernel. Each thread Ti applies selection
+sort on sorted Di in which it uses binary search to fmd
+out the exact sorted position of each element of data
+sequence D. After that, copy the corresponding
+element of the obtained position in data sequence d.
+Finally we get the sorted output in data sequence d.
+We have done an experimental evaluation of our
+SCS sorting algorithm on Tesla C2075 (448 cores),
+with compute capability 2.0. We have implemented
+this algorithm in visual c++ runs on visual studios
+2010 by using CUDA 5.0. And we are using
+Windows 7 as operating system with RAM 24 GB
+and Intel(R) Xeon(R) E5-2650 @ 2.00 GHz as
+processor.
+Here we have evaluated the speed up of parallel
+selection sort on GPUs with parallel sorting algorithm
+based on odd-even merge sort and sequential quick
+sort [17]. Sequential quick sort is implemented in c
+and the parallel odd-even merge sort is implemented
+in CUDA. We have evaluated the performance of all
+implemented algorithms on a large data sequence
+having number of elements from lK to 100M.
+Result shows that Parallel selection sort is better
+than others for large data sequence. It gives almost
+two times speedup than parallel odd-even merge sort.
+For small size of data sequence like has less than 10K
+elements sequential quick sort is better than others.
+But more than 10 K elements of data sequence
+parallel selection sort takes less execution time.
+Table I shows the execution time of sequential
+quick sort and parallel selection sort. It shows that
+sequential quick sort gives better performance for
+small data sequence which has less than 10K
+elements. Parallel selection sort gives almost 300X
+speed up than sequential quick sort for large data
+sequence which has more than 1 M elements. This is
+just because of number of threads work independently
+and simultaneously to sort the large data sequence.
+TABLE I. DIFFERENT SORTING RESULTS ON GPUs
+No. Of Time in milliseconds
+elements
+Sequential quick Parallel selection
+sort sort
+IK 20.0 41.34
+10K 170.0 239.47
+20K 390.0 280.80
+50K 1300.0 363. 15
+lOOK 5700.0 638.90
+1M 131000.0 2548.40
+Table II shows the execution time of parallel oddeven merge sort and Parallel selection sort on GPUs
+with 100 elements in each threads. After analysing the
+results of both parallel algorithm we can say that our
+proposed algorithm gives better performance than
+parallel odd-even merge sort. This is because of in
+parallel odd even merge sort we have to call the
+threads performing the odd position sorting and even
+position sorting is half of number of threads we have
+created at any time. But in parallel selection sort we
+have to call the thread performing the actual sorting
+978-1-4799-6393-5/14/$31.00 ©2014 IEEE
+IEEE International Conference on Advances in Engineering & Technology Research (ICAETR - 2014),
+August 01-02, 2014, Dr. Virendra Swarup Group ofInstitutions, Unnao, India
+just once, which is saving lots of thread management
+time.
+TABLE II. RESULTS WITH 100 ELEMENTS IN EACH
+THREADS
+No. Of elements Time in milliseconds
+Parallel Odd-Even Parallel selection
+Merge Sort sort
+lK 70.99 41.34
+10K 287.43 239.47
+20K 387.80 280.80
+50K 521.27 363. 15
+lOOK 956.72 638.90
+1M 8426.48 4348.40
+10M 142867.89 84850.95
+20M 307152.90 113570.86
+50M 1023964.35 432653.21
+Table III shows the execution time of parallel
+odd-even merge sort and Parallel selection sort on
+GPUs with 10 elements in each threads. After
+analysing the results of both parallel algorithm we can
+say that our proposed algorithm gives much better
+performance than parallel odd-even merge sort 10
+elements in each threads.
+We can easily analyse that number of threads
+increases it starts decreasing execution time for large
+data sequence. That is less number of elements in
+each threads takes less execution time. By seeing the
+results we can say that 10 elements in each threads
+takes less time for more than 10 K elements of data
+sequence than 100 elements in each threads.
+TABLE III. RESULTS WITH 10 ELEMENTS IN EACH
+THREADS
+No. Of Time in milliseconds
+elements Parallel Odd-Even Parallel selection
+Merge Sort sort
+10K 190.74 227.85
+20K 242.89 201.78
+50K 388.82 308.56
+lOOK 809.78 635.90
+1M 6882.0 3948.40
+10M 31101.67 7321.87
+VII. CONCLUSIONS
+This paper represents an efficient parallel
+selection sorting algorithm for GPU based machines
+using the concept of split and concurrent selection.
+We have shown that how after decreasing number of
+elements per thread proposed algorithm is giving
+better performance. Proposed parallel algorithm gives
+almost 50x speed-ups than sequential quick sort for a
+large data sequence. It gives almost 3.5x speed-ups
+than parallel odd-even merge sort for our GPU based
+machine. In future we can improve the performance
+of parallel section sort by minimising the number of
+elements with any other elements is compared to find
+its correct position in list.
+REFRENCES
+[1] S. Huba and K. Dzmitry, "Parallel merge sort,"
+Published by Chapman University, California,
+USA, March 1, 2011.
+[2] E. Sintorn and U. Assarsson, "Fast parallel
+GPU-sorting using a hybrid algorithm,"
+Published by Chalmers University Of
+Technology, Gothenburg, Sweden, 2007.
+[3] S. G. Akl, The design and analysis of parallel
+algorithms, 3rd ed., Vol. 5, Prentice Hall,
+Englewood Cliffs, NJ, 1989, pp. 147-156.
+[4] K. Suehiro, H. Murai and Y. Seo, "Integer
+Sorting on Shared-Memory Vector Parallel
+Computers," Published in ICS '98 Proceedings
+of the 12th International Conference on
+Supercomputing , ACM, Newyork, USA, 1998,
+pp.313-320.
+[5] J. S. Huang and Y. C. Chow," Parallel sorting
+and data partitioning by sampling," ih
+Conference Paper on Computer Software and
+Applications , China, Aug. 1983, pp. 278-282.
+[6] N. Satish, M. Harris and M. Garland, "Designing
+Efficient Sorting Algorithms for Manycore
+GPUs," NVIDIA Technical Report, Sep. 2008.
+[7] H. Peters, O. Schulz-Hildebrandt, and N.
+Luttenberger, "Parallel external sorting for
+CUDA-enabled GPUs with load balancing and
+low transfer overhead," IEEE International
+Symposium on Parallel & Distributed
+processing, Workshops and Phd Forum
+(lPDPSW), Atlanta, GA, 19-23 April 2010,
+pp.I-8.
+[8] D. E. Knut
